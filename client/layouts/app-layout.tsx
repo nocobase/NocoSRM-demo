@@ -1,3 +1,4 @@
+import { useSupplierNavigation } from '../pages/srm/use-supplier-navigation.js';
 import { useSyncServerLocale } from '@nocobase/app-plugin-i18n/client';
 import type { ReactElement } from 'react';
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
@@ -35,6 +36,8 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
 
   const { t } = useTranslation();
   const { items: menuItems, denied } = useRouteNavigation(routes);
+  // Root authorization bypass does not imply an applicant identity; the SRM service owns that decision.
+  const visibleMenuItems = useSupplierNavigation(menuItems);
   const selectedKey = selectedNavigationId(
     routes,
     useLocation().pathname,
@@ -51,7 +54,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
         <AppSidebarProvider>
           <AppSidebar label={navigationLabel} footer={<AppSidebarFooter />}>
             <NavigationMenu
-              items={menuItems}
+              items={visibleMenuItems}
               label={navigationLabel}
               selectedKey={selectedKey}
             />

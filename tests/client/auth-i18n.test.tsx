@@ -20,6 +20,11 @@ const resetState = vi.hoisted(() => ({
 }));
 
 vi.mock('@nocobase/app-plugin-authentication/client', () => ({
+  useAuthentication: () => ({
+    session: null,
+    client: { signUp: { email: vi.fn() } },
+    refresh: vi.fn(),
+  }),
   useSignUpAvailable: () => true,
   usePasswordResetCapability: () => ({
     data: { passwordResetAvailable: resetState.available },
@@ -31,6 +36,9 @@ vi.mock('@nocobase/app-plugin-authentication/client', () => ({
 
 vi.mock('@nocobase/app-plugin-authentication/client/actions', () => ({
   usePasswordLogin: () => ({ isPending: false, submit: vi.fn() }),
+  useAuthenticationErrorResolver: () => () => ({
+    message: 'Registration failed',
+  }),
   usePasswordRegistration: () => ({ isPending: false, submit: vi.fn() }),
   usePasswordReset: () => ({
     isPending: false,
@@ -105,13 +113,15 @@ describe('authentication translations', () => {
     const value = await runtime();
     renderPage(value, <LoginPage />);
     await act(() => value.changeLanguage('zh-CN'));
-    expect(screen.getByRole('heading', { name: '欢迎回来' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '供应商登录' })).toBeVisible();
     expect(screen.getByLabelText('用户名或邮箱')).toBeVisible();
     expect(screen.getByRole('button', { name: '显示密码' })).toBeVisible();
     expect(screen.getByRole('link', { name: '注册' })).toBeVisible();
     expect(screen.getByText('AI 原生应用平台')).toBeVisible();
     await act(() => value.changeLanguage('en-US'));
-    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Supplier sign in' }),
+    ).toBeVisible();
   });
   it('retranslates an existing password mismatch', async () => {
     const value = await runtime();

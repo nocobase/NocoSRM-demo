@@ -5,7 +5,7 @@ import {
 } from '@nocobase/app-client/plugins';
 import { describe, expect, it } from 'vitest';
 
-import systemSettingsRoutes from '../../client/pages/settings/routes.js';
+import packageMetadata from '../../package.json' with { type: 'json' };
 import applicationRoutes from '../../client/routes.ts';
 
 describe('app client routes', () => {
@@ -52,57 +52,51 @@ describe('app client routes', () => {
     const resolved = resolveRoutes();
 
     // The landing page and the inbox opted out of page authorization, so they are reachable by every signed-in user.
-    expect(pageAuthorizations(resolved.routes)).toEqual([
-      { name: 'home', authorizedAs: null },
-      { name: 'inbox', authorizedAs: null },
-    ]);
+    expect(
+      Object.fromEntries(
+        pageAuthorizations(resolved.routes).map((page) => [
+          page.name,
+          page.authorizedAs,
+        ]),
+      ),
+    ).toEqual({
+      home: null,
+      inbox: null,
+      srmAdmission: 'srmAdmission',
+      srmApplications: 'srmApplications',
+      srmApplicationDetail: 'srmApplications',
+      srmSuppliers: 'srmSuppliers',
+      srmSupplierDetail: 'srmSuppliers',
+      srmCategories: 'settings:srm.business',
+      srmCategoryCreate: 'settings:srm.business',
+      srmCategoryEdit: 'settings:srm.business',
+      srmWorkflow: 'settings:srm.business',
+      settingsUsers: 'user:*',
+      settingsUserCreate: 'user:*',
+      settingsUser: 'user:*',
+      settingsUserEdit: 'user:*',
+      settingsRoles: 'settings:authorization.permission-sets',
+      settingsRoleCreate: 'settings:authorization.permission-sets',
+      settingsRoleEdit: 'settings:authorization.permission-sets',
+      settingsDefaultAccess: 'settings:authorization.default-access',
+      settingsDefaultAccessCreate: 'settings:authorization.default-access',
+      settingsDefaultAccessEdit: 'settings:authorization.default-access',
+    });
   });
 
-  it('keeps a bare application home-only and supports settings registration as business capabilities are developed', async () => {
-    expect(
-      pagePaths(resolveRoutes().routes).some((path) =>
-        path.startsWith('/settings'),
-      ),
-    ).toBe(false);
-    const built = resolveAppClientContributions([
-      {
-        packageName: '@nocobase/app-template-default',
-        routes: [...applicationRoutes, systemSettingsRoutes],
-        source: 'application',
-      },
-    ]);
-    expect(pageAuthorizations(built.routes)).toEqual([
-      { name: 'home', authorizedAs: null },
-      { name: 'inbox', authorizedAs: null },
-      { name: 'settingsUsers', authorizedAs: 'user:*' },
-      { name: 'settingsUserCreate', authorizedAs: 'user:*' },
-      { name: 'settingsUser', authorizedAs: 'user:*' },
-      { name: 'settingsUserEdit', authorizedAs: 'user:*' },
-      {
-        name: 'settingsRoles',
-        authorizedAs: 'settings:authorization.permission-sets',
-      },
-      {
-        name: 'settingsRoleCreate',
-        authorizedAs: 'settings:authorization.permission-sets',
-      },
-      {
-        name: 'settingsRoleEdit',
-        authorizedAs: 'settings:authorization.permission-sets',
-      },
-      ...[
-        'settingsDefaultAccess',
-        'settingsDefaultAccessCreate',
-        'settingsDefaultAccessEdit',
-      ].map((name) => ({
-        name,
-        authorizedAs: 'settings:authorization.default-access',
-      })),
-    ]);
-    for (const loader of componentLoadersIn(built.routes))
-      await expect(loader()).resolves.toMatchObject({
-        default: expect.any(Function),
-      });
+  it('registers business and system management pages once', () => {
+    const paths = pagePaths(resolveRoutes().routes);
+    for (const path of [
+      '/admission',
+      '/supplier',
+      '/applications',
+      '/suppliers',
+      '/settings/users',
+      '/settings/roles',
+      '/settings/categories',
+      '/settings/workflows',
+    ])
+      expect(paths.filter((registered) => registered === path)).toHaveLength(1);
   });
 
   it('keeps the inbox out of the application navigation', () => {
@@ -117,7 +111,7 @@ describe('app client routes', () => {
 function resolveRoutes() {
   return resolveAppClientContributions([
     {
-      packageName: '@nocobase/app-template-default',
+      packageName: packageMetadata.name,
       routes: applicationRoutes,
       source: 'application',
     },

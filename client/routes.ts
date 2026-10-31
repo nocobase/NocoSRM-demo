@@ -1,4 +1,5 @@
-import { Home } from 'lucide-react';
+import systemSettingsRoutes from './pages/settings/routes.js';
+import { Building2, ClipboardCheck, BookOpen, Home } from 'lucide-react';
 import {
   defineAppRoutes,
   type AppClientRouteContribution,
@@ -10,7 +11,7 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     // no permission change can leave a user signed in with nowhere to land.
     authz: 'skip',
     auth: 'required',
-    componentLoader: () => import('./pages/home/index.js'),
+    componentLoader: () => import('./pages/srm/home.js'),
     name: 'home',
     navigation: { title: 'navigation.home', icon: Home },
     path: '/',
@@ -64,6 +65,70 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
   },
 ]);
 
-const routes: readonly AppClientRouteContribution[] = [appRoutes];
+const srmRoutes = defineAppRoutes([
+  {
+    name: 'supplierRegistrationComplete',
+    path: '/registration-complete',
+    auth: 'optional',
+    authz: 'skip',
+    componentLoader: () => import('./pages/auth/registration-complete.js'),
+  },
+  {
+    name: 'supplierEntry',
+    path: '/supplier',
+    auth: 'optional',
+    authz: 'skip',
+    componentLoader: () => import('./pages/srm/entry.js'),
+  },
+  {
+    name: 'srmAdmission',
+    path: '/admission',
+    auth: 'required',
+    authz: { resource: { type: 'page', id: 'srmAdmission' }, action: 'access' },
+    navigation: { title: 'srm.admission', icon: Building2 },
+    componentLoader: () => import('./pages/srm/admission.js'),
+  },
+  {
+    name: 'srmApplications',
+    path: '/applications',
+    auth: 'required',
+    authz: {
+      resource: { type: 'page', id: 'srmApplications' },
+      action: 'access',
+    },
+    navigation: { title: 'srm.applications', icon: ClipboardCheck },
+    componentLoader: () => import('./pages/srm/list.js'),
+    children: [
+      {
+        name: 'srmApplicationDetail',
+        path: ':id',
+        componentLoader: () => import('./pages/srm/detail.js'),
+      },
+    ],
+  },
+  {
+    name: 'srmSuppliers',
+    path: '/suppliers',
+    auth: 'required',
+    authz: {
+      resource: { type: 'page', id: 'srmSuppliers' },
+      action: 'access',
+    },
+    navigation: { title: 'srm.suppliers', icon: BookOpen },
+    componentLoader: () => import('./pages/srm/list.js'),
+    children: [
+      {
+        name: 'srmSupplierDetail',
+        path: ':id',
+        componentLoader: () => import('./pages/srm/detail.js'),
+      },
+    ],
+  },
+]);
+const routes: readonly AppClientRouteContribution[] = [
+  appRoutes,
+  systemSettingsRoutes,
+  srmRoutes,
+];
 
 export default routes;

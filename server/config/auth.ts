@@ -4,6 +4,8 @@ import {
   defineAuthConfig,
   type AuthConfig,
 } from '@nocobase/app-plugin-authentication/server';
+import { z } from 'zod';
+const referrerSchema = z.string().trim().max(100);
 import { bearer, deviceAuthorization, username } from 'better-auth/plugins';
 
 /**
@@ -28,6 +30,27 @@ const auth: AppConfigFactory<AuthConfig> = defineAuthConfig({
       bearer(),
     ],
     emailAndPassword: { enabled: true, autoSignIn: false },
+    passwordReset: { enabled: false },
+    user: {
+      additionalFields: {
+        referrerName: {
+          type: 'string',
+          required: false,
+          input: true,
+          validator: { input: referrerSchema },
+        },
+      },
+    },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 30,
+      customRules: {
+        '/sign-up/email': { window: 60, max: 3 },
+        '/send-verification-email': { window: 60, max: 3 },
+        '/request-password-reset': { window: 60, max: 3 },
+      },
+    },
     session: { storeSessionInDatabase: true },
     account: { encryptOAuthTokens: true },
   },
