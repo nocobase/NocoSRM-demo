@@ -16,6 +16,7 @@ import { i18nToken } from '@nocobase/app-server/i18n';
 import { ApiError } from '@nocobase/app-server/router';
 import { admission, type Company, type SrmServices } from './lifecycle.js';
 import { decoded, profileSchema, type Profile } from './schema.js';
+import { AiReviewService } from './ai-review.js';
 
 export function refuse(
   reason: string,
@@ -37,15 +38,44 @@ export const businessActions = [
   'manageCategories',
   'inspectWorkflow',
   'retryNotifications',
+  'configureAiReview',
 ] as const;
+
+/** Workflow inspection does not grant access to internal model evidence. */
+export function redactAiEvidence<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(redactAiEvidence) as T;
+  if (!value || typeof value !== 'object' || value instanceof Date)
+    return value;
+  const row = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(row)
+      .filter(
+        ([key]) =>
+          key !== 'automaticApproval' &&
+          key !== 'aiReview' &&
+          !(key === 'result' && row.effect === 'srm.aiReview') &&
+          !(key === 'details' && row.action === 'aiReview'),
+      )
+      .map(([key, item]) => [key, redactAiEvidence(item)]),
+  ) as T;
+}
 
 export class SrmService {
   readonly db;
   readonly runtime: LifecycleRuntime;
   readonly approvals: ApprovalService;
+  readonly ai: AiReviewService;
+  effectDispatcher?: import('@nocobase/lifecycle').EffectDispatcher;
   constructor(readonly app: Application) {
     this.db = app.container.resolve(databaseManagerToken);
     this.runtime = new LifecycleRuntime({
+      dispatcher: {
+        dispatch: (id, options) => {
+          if (!this.effectDispatcher)
+            throw new Error('Admission effect jobs are not started.');
+          return this.effectDispatcher.dispatch(id, options);
+        },
+      },
       store: createRepositoryLifecycleStore(this.db, {
         collections: {
           transitions: 'srmTransitions',
@@ -63,6 +93,7 @@ export class SrmService {
       [admission.approval as unknown as Approval<never>],
       services,
     );
+    this.ai = new AiReviewService(this);
   }
   async can(
     userId: string,
@@ -105,6 +136,9 @@ export class SrmService {
     const users = this.app.container.resolve(userAdministrationServiceToken);
     return {
       connection,
+      aiReview: (context) => this.ai.review(context),
+      authorizeAi: (record, task, run, evidence) =>
+        this.ai.authorize(record, task, run, evidence, connection),
       reviewers: async () => {
         const assignments = await this.app.container
           .resolve(authorizationToken)
@@ -372,12 +406,19 @@ export class SrmService {
       )
         refuse('CATEGORY_UNAVAILABLE');
     await this.validateFiles(userId, p, connection);
+    // Configuration failures fail open to the existing human task, never to approval.
+    let aiReview: import('@nocobase/lifecycle').JsonObject | null = null;
+    try {
+      aiReview = await this.ai.settings(connection);
+    } catch {
+      /* captured as manual fallback by the effect */
+    }
     await this.runtime.fire(
       'srmCompanies',
       company.id,
       company.status === 'draft' ? 'submit' : 'resubmit',
       {
-        input: { submissionVersion: company.submissionVersion + 1 },
+        input: { submissionVersion: company.submissionVersion + 1, aiReview },
         actor: { id: userId },
         requestId: key,
         manual: true,
@@ -439,15 +480,63 @@ export class SrmService {
       contentHash: runs.find((view) => view.run.id === item.task.runId)?.run
         .contentHash,
     }));
+    const mayReadAi = !owner && (await this.can(userId, 'readApplications'));
+    // Native history remains visible to applicants, but internal model evidence is reviewer-only.
+    const aiReviews = mayReadAi
+      ? await this.db.repository('srmAudit').findMany({
+          filter: { companyId: id },
+          sort: (sort) => sort.field('at').desc(),
+        })
+      : [];
+    const failedAi = mayReadAi
+      ? await this.db.repository('srmEffectRuns').findMany({
+          filter: { recordId: id, effect: 'srm.aiReview', status: 'failed' },
+        })
+      : [];
     return {
       company: { ...company, draft: owner ? company.draft : company.snapshot },
       versions: versions.map((v) => ({
         ...v,
         snapshot: decoded<Profile>(v.snapshot),
       })),
-      runs,
+      runs: mayReadAi ? runs : redactAiEvidence(runs),
       actions: actionsWithHash,
       people,
+      ...(mayReadAi
+        ? {
+            aiReviews: [
+              ...aiReviews.flatMap((entry) => {
+                const details = decoded<
+                  import('@nocobase/lifecycle').JsonObject
+                >(entry.details);
+                if (entry.action === 'aiReview')
+                  return [{ id: entry.id as string, at: entry.at, ...details }];
+                if (
+                  entry.action === 'approved' &&
+                  details.aiReview &&
+                  typeof details.aiReview === 'object' &&
+                  !Array.isArray(details.aiReview)
+                )
+                  return [
+                    {
+                      id: entry.id as string,
+                      at: entry.at,
+                      ...details.aiReview,
+                      outcome: 'automatic',
+                    },
+                  ];
+                return [];
+              }),
+              ...failedAi.map((entry) => ({
+                id: String(entry.id as string | number | bigint),
+                at: entry.updatedAt,
+                effectRunId: String(entry.id as string | number | bigint),
+                outcome: 'manual',
+                code: 'timeoutOrFailure',
+              })),
+            ],
+          }
+        : {}),
     };
   }
 }

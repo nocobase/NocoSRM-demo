@@ -68,3 +68,7 @@ minimumReleaseAgeExclude:
   - nodemailer@10.3.1
   - react-resizable-panels@4.15.2
   - react-virtuoso@4.18.20
+
+patchedDependencies:
+  '@nocobase/app-cli@1.0.0-beta.30': patches/@nocobase__app-cli@1.0.0-beta.30.patch
+  '@nocobase/app-plugin-approval@0.1.0-beta.7': patches/@nocobase__app-plugin-approval@0.1.0-beta.7.patch

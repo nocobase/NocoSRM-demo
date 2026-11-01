@@ -6,7 +6,9 @@ import {
   ShieldCheck,
   KeyRound,
   ListFilter,
+  BrainCircuit,
 } from 'lucide-react';
+import { modelsRoute } from '@nocobase/app-plugin-agents/client/routes';
 import {
   defineAppRoutes,
   type AppClientRouteContribution,
@@ -19,6 +21,10 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
     path: '/settings',
     navigation: { title: 'settings.title', icon: Settings, order: 100 },
     children: [
+      {
+        ...modelsRoute,
+        navigation: { title: 'srm.ai.models', icon: BrainCircuit },
+      },
       {
         name: 'srmCategories',
         path: '/categories',

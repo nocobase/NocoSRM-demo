@@ -1,6 +1,9 @@
 import { useCategoryName } from './shared.js';
 import { Failure, StateBadge } from './feedback.js';
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '#components/ui/button';
+import { LongText } from '#components/long-text';
 import { useParams } from 'react-router';
 import {
   useApiClient,
@@ -128,7 +131,11 @@ export function AdmissionHistory({ detail }: { detail: Detail }) {
   const { t } = useTranslation();
   const date = useDate();
   const name = (id: string | null | undefined) =>
-    id ? (detail.people?.[id] ?? t('srm.procurement')) : t('srm.system');
+    id === 'srm.aiReview'
+      ? t('srm.ai.actor')
+      : id
+        ? (detail.people?.[id] ?? t('srm.procurement'))
+        : t('srm.system');
   const text = { t, name, stage: () => t('srm.procurement') };
   const steps = approvalStepsOf(detail.runs).map((step) => ({
     ...step,
@@ -202,6 +209,7 @@ export function AdmissionHistory({ detail }: { detail: Detail }) {
 export default function AdmissionDetail() {
   const { id = '' } = useParams();
   const { t } = useTranslation();
+  const date = useDate();
   const api = useApiClient();
   const { session } = useAuthentication();
   const resource = useResource<Detail>(`srm/companies/${id}`);
@@ -285,6 +293,18 @@ export default function AdmissionDetail() {
       <PageContainer className='mx-auto max-w-5xl'>
         <BackButton />
         <PageHeader
+          actions={
+            <Button
+              variant='outline'
+              size='icon'
+              aria-label={t('srm.refresh')}
+              title={t('srm.refresh')}
+              disabled={resource.loading}
+              onClick={resource.reload}
+            >
+              <RefreshCw className={resource.loading ? 'animate-spin' : ''} />
+            </Button>
+          }
           title={
             detail?.company.snapshot?.legalName || t('srm.applicationDetail')
           }
@@ -314,6 +334,78 @@ export default function AdmissionDetail() {
               </p>
             )}
             <ApprovalActionBar actions={actions} busy={operation.submitting} />
+            {!!detail.aiReviews?.length && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('srm.ai.title')}</CardTitle>
+                </CardHeader>
+                <CardContent className='flex flex-col gap-4'>
+                  {detail.aiReviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className='flex flex-col gap-2 rounded-lg border border-border p-4'
+                    >
+                      <p className='text-sm font-medium'>
+                        {t(`srm.ai.outcomes.${review.outcome}`, {
+                          defaultValue: t('srm.ai.outcomes.manual'),
+                        })}{' '}
+                        · {date(review.at)}
+                      </p>
+                      <dl className='grid gap-3 text-sm sm:grid-cols-2'>
+                        {review.recommendation && (
+                          <div>
+                            <dt className='text-muted-foreground'>
+                              {t('srm.ai.recommendation')}
+                            </dt>
+                            <dd>
+                              {t(
+                                `srm.ai.recommendations.${review.recommendation}`,
+                              )}
+                            </dd>
+                          </div>
+                        )}
+                        {review.confidence !== undefined && (
+                          <div>
+                            <dt className='text-muted-foreground'>
+                              {t('srm.ai.confidence')}
+                            </dt>
+                            <dd>
+                              {review.confidence} / {review.threshold}
+                            </dd>
+                          </div>
+                        )}
+                        {review.model && (
+                          <div>
+                            <dt className='text-muted-foreground'>
+                              {t('srm.ai.model')}
+                            </dt>
+                            <dd className='wrap-anywhere'>
+                              {review.model.modelService} / {review.model.model}
+                            </dd>
+                          </div>
+                        )}
+                        {review.submissionVersion && (
+                          <div>
+                            <dt className='text-muted-foreground'>
+                              {t('srm.versionLabel')}
+                            </dt>
+                            <dd>{review.submissionVersion}</dd>
+                          </div>
+                        )}
+                      </dl>
+                      {review.code && (
+                        <p className='text-sm text-muted-foreground'>
+                          {t('srm.ai.fallbackHint')}
+                        </p>
+                      )}
+                      {[...new Set(review.reasons)].map((reason) => (
+                        <LongText key={reason}>{reason}</LongText>
+                      ))}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
             <AdmissionHistory detail={detail} />
           </>
         )}

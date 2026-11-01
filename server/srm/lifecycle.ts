@@ -10,6 +10,7 @@ import {
 import { defineEffect, type LifecycleRecord } from '@nocobase/lifecycle';
 import type { DatabaseConnection } from '@nocobase/db';
 import type { Profile } from './schema.js';
+import { AI_ACTOR } from './ai-schema.js';
 
 export interface Company extends LifecycleRecord {
   id: string;
@@ -28,6 +29,15 @@ export interface SrmServices {
   connection: DatabaseConnection;
   directory: ApprovalDirectory;
   reviewers(): Promise<string[]>;
+  aiReview(
+    context: import('@nocobase/lifecycle').EffectContext<SrmTypes>,
+  ): Promise<import('@nocobase/lifecycle').JsonObject>;
+  authorizeAi(
+    record: Company,
+    task: import('@nocobase/app-plugin-approval/server').TaskRow,
+    run: import('@nocobase/app-plugin-approval/server').RunRow,
+    evidence: import('@nocobase/lifecycle').JsonObject,
+  ): Promise<boolean>;
   notify(
     record: Company,
     key: string,
@@ -53,10 +63,16 @@ const notice = defineEffect<SrmTypes>({
   run: ({ record, services, idempotencyKey, to, input }) =>
     services.notify(record, idempotencyKey, to, input),
 });
+const aiReview = defineEffect<SrmTypes>({
+  name: 'srm.aiReview',
+  timeoutMs: 30_000,
+  retry: { attempts: 1 },
+  run: (context) => context.services.aiReview(context),
+});
 
 const audit: (
   context: import('@nocobase/lifecycle').TransitionHookContext<SrmTypes>,
-) => Promise<void> = async ({ record, entry, actor, now, services }) => {
+) => Promise<void> = async ({ record, entry, actor, now, services, input }) => {
   const connection = services.connection;
   const transition = entry.transition;
   const at = now.toISOString();
@@ -66,7 +82,10 @@ const audit: (
       actorId: actor.id,
       companyId: record.id,
       action: transition,
-      details: { submissionVersion: record.submissionVersion },
+      details: {
+        submissionVersion: record.submissionVersion,
+        ...(actor.id === AI_ACTOR ? { aiReview: input.automaticApproval } : {}),
+      },
       at,
     },
   });
@@ -90,6 +109,11 @@ export const admission = defineApproval<SrmTypes>({
   initial: 'draft',
   applicant: (record) => record.ownerId,
   directory: (services) => services.directory,
+  automaticApprove: {
+    actorId: AI_ACTOR,
+    authorize: ({ record, task, run, evidence, services }) =>
+      services.authorizeAi(record, task, run, evidence),
+  },
   freeze: ['snapshot', 'submissionVersion', 'creditCode'],
   states: [
     'draft',
@@ -167,5 +191,9 @@ export const admission = defineApproval<SrmTypes>({
       approvalOutcome: 'rejected',
     },
   },
-  onEnter: { pending: [notice], rejected: [notice], approved: [notice] },
+  onEnter: {
+    pending: [notice, aiReview],
+    rejected: [notice],
+    approved: [notice],
+  },
 });

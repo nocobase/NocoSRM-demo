@@ -1,0 +1,38 @@
+diff --git a/dist/tools/scripts/utils/build-server-dist-package.mjs b/dist/tools/scripts/utils/build-server-dist-package.mjs
+index 66863286d9ab9944de3e6b675e1848bde7b167a6..2cb820c218af961fda2714beb11ab60ce38a71f5 100644
+--- a/dist/tools/scripts/utils/build-server-dist-package.mjs
++++ b/dist/tools/scripts/utils/build-server-dist-package.mjs
+@@ -15,6 +15,7 @@
+ // developed in this repository deploys the same way as one installed from a registry.
+ import fs from 'node:fs';
+ import path from 'node:path';
++import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+ 
+ import { listWorkspacePackages } from './workspace-packages.mjs';
+ 
+@@ -158,6 +159,7 @@ const writeDistWorkspace = () => {
+       '#',
+       '# Also marks dist/ as its own pnpm root, so installing here never reaches an enclosing workspace.',
+       'nodeLinker: hoisted',
++      stringifyYaml({ patchedDependencies: runtimePatches }),
+       '',
+       '# Client packages are declared by plugins as peer dependencies, so an application installs one shared copy',
+       '# and its Vite build resolves them. A server deployment has no client build and never requires them, so it',
+@@ -229,6 +231,17 @@ if (!fs.existsSync(path.join(distDir, 'server'))) {
+ }
+ 
+ const rootPackage = readJson(rootPackagePath);
++const rootWorkspace = parseYaml(fs.readFileSync(path.join(rootDir, 'pnpm-workspace.yaml'), 'utf8'));
++const runtimePatches = {};
++for (const [selector, relative] of Object.entries(rootWorkspace.patchedDependencies ?? {})) {
++  const packageName = selector.slice(0, selector.lastIndexOf('@'));
++  if (!rootPackage.dependencies?.[packageName]) continue;
++  const file = typeof relative === 'string' ? relative : relative.path;
++  const target = path.join('patches', path.basename(file));
++  fs.mkdirSync(path.join(distDir, 'patches'), { recursive: true });
++  fs.copyFileSync(path.resolve(rootDir, file), path.join(distDir, target));
++  runtimePatches[selector] = toPosix(target);
++}
+ const workspacePackages = listWorkspacePackages(rootDir);
+ const workspacePackageNames = new Set();
+ const externalPackageNames = new Map();

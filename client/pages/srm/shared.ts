@@ -30,6 +30,18 @@ export interface Category {
   revision: number;
 }
 export interface Detail {
+  aiReviews?: {
+    id: string;
+    at: string;
+    submissionVersion?: number;
+    recommendation?: string;
+    confidence?: number;
+    threshold?: number;
+    reasons?: string[];
+    model?: { modelService: string; model: string };
+    outcome: string;
+    code?: string;
+  }[];
   company: Company;
   versions: {
     id: string;
