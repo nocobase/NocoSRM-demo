@@ -1,0 +1,53 @@
+# Deploy the main branch to a persistent Studio test App, independent of PR previews.
+# Store the repository's CI key (Studio: the project's Deployment, or nb-studio build ci setup <owner/repo> --reveal) as the repository secret NB_STUDIO_API_KEY.
+name: NocoBase Studio nocosrm-demo staging
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  NB_STUDIO_URL: 'https://studio.v2.test.nocobase.com/main'
+jobs:
+  deploy:
+    name: Deploy main to staging
+    runs-on: ubuntu-latest
+    # Manual dispatches must also use main.
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: nb-studio-nocosrm-demo-staging
+      cancel-in-progress: false
+    env:
+      APP_ID: 'nocosrm-demo-staging'
+      ENVIRONMENT: 'staging'
+      LOGS: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install the nb-studio CLI
+        env:
+          NB_STUDIO_API_KEY: ${{ secrets.NB_STUDIO_API_KEY }}
+        run: |
+          NB_STUDIO_CLI_ENV="$(curl -fsS -H "x-api-key: $NB_STUDIO_API_KEY" "$NB_STUDIO_URL/api/agents/dist/products/nb-studio/targets/linux-x64?format=env")"
+          eval "$NB_STUDIO_CLI_ENV"
+          mkdir -p "$RUNNER_TEMP/nb-studio"
+          curl -fsS -H "x-api-key: $NB_STUDIO_API_KEY" "$NB_STUDIO_URL$url" | tar -xz --strip-components=1 -C "$RUNNER_TEMP/nb-studio"
+          echo "$RUNNER_TEMP/nb-studio/bin" >> "$GITHUB_PATH"
+          printf %s "$NB_STUDIO_API_KEY" | NB_STUDIO_KEYCHAIN=off "$RUNNER_TEMP/nb-studio/bin/nb-studio" login --server "$NB_STUDIO_URL" --api-key-stdin
+      - run: nb-studio build status --app "$APP_ID" --state building --logs "$LOGS"
+      - run: pnpm install --frozen-lockfile
+      # Leaves storage/exports/dist.tar.gz: dist/ and config.example.yml.
+      - run: pnpm build --target linux-x64 --tar
+      # Reuse the same App, database and files on every main deployment.
+      - run: nb-studio app ensure "$APP_ID" --environment "$ENVIRONMENT"
+      # Uploads the archive and deploys it; a protected environment asks its approvers instead.
+      - run: nb-studio deploy --app "$APP_ID" --file storage/exports/dist.tar.gz
+      - if: failure()
+        run: nb-studio build status --app "$APP_ID" --state failed --logs "$LOGS"

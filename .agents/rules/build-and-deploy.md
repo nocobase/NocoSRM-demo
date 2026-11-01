@@ -1,5 +1,11 @@
 # Building and deploying this application
 
+## Studio staging deployment
+
+The persistent test application is `nocosrm-demo-staging` in the `staging` environment of `https://studio.v2.test.nocobase.com/main` (local CLI profile: `default`). Its public URL is `https://studio.v2.test.nocobase.com/nocosrm-demo-staging/`. The environment has purpose `test`; the App uses eager activation with idle stopping and dormancy disabled. Its first installation uses a new Studio-managed database and storage without sample data. Later deployments retain that database and storage.
+
+`.github/workflows/nb-studio-nocosrm-demo-staging.yml` builds every push to `main` and also supports manual dispatch on `main`. It uses the existing repository secret `NB_STUDIO_API_KEY`. Deployments share a concurrency group without cancelling a running deployment. Keep the separate PR preview workflow: those Apps are temporary and removed after their PR closes. The staging App is independent of PR cleanup. Do not point staging CI at another Studio profile or replace its persistent data during an update.
+
 Read this before changing the build, packing a deployment archive, building or editing the Docker image, setting `CDN_BASE_URL`, or building for another platform. The deployment process itself is in the [deployment Skill](../skills/nocobase-deployment/SKILL.md), and dependency placement and the build failure table are in [where to declare a dependency](../skills/nocobase-app-development/references/dependencies.md).
 
 ## Client typechecking
