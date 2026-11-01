@@ -8,6 +8,10 @@ The persistent test application is `nocosrm-demo-staging` in the `staging` envir
 
 Read this before changing the build, packing a deployment archive, building or editing the Docker image, setting `CDN_BASE_URL`, or building for another platform. The deployment process itself is in the [deployment Skill](../skills/nocobase-deployment/SKILL.md), and dependency placement and the build failure table are in [where to declare a dependency](../skills/nocobase-app-development/references/dependencies.md).
 
+## Runtime dependency patches
+
+Supplier AI review uses versioned pnpm patches for Approval and the App CLI. Keep both `patches/` files and their `patchedDependencies` entries in `pnpm-workspace.yaml`: the CLI's production manifest generator must copy the patches into the separate `dist` installation. A successful source test alone cannot verify the deployed method. After updating these dependencies, verify an automatic native decision from an extracted archive. See [AI review](../../docs/ai-review.md). Never edit installed hard-linked dependency files.
+
 ## Client typechecking
 
 Keep `types: ["node"]` in the client `tsconfig.json`. Shared contracts from database and lifecycle packages resolve to their TypeScript sources in a workspace and require Node.js declarations during typechecking. Declare that requirement explicitly instead of relying on unrelated plugin imports to load the declarations; type-only imports still disappear from the browser bundle.

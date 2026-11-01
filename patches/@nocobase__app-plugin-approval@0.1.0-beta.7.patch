@@ -1,0 +1,145 @@
+diff --git a/dist/server/application.d.ts b/dist/server/application.d.ts
+index f7cb8231a0de12a4178fbadf44c8696a7f7e506d..75bb9502ac25460f60c4a9854953c13f9c0cb724 100644
+--- a/dist/server/application.d.ts
++++ b/dist/server/application.d.ts
+@@ -8,7 +8,7 @@ export interface ApprovalState<T extends LifecycleTypes> extends StateDefinition
+ export declare function approvalState<T extends LifecycleTypes>(name: T['state'], approval: StageDefinition<T>): ApprovalState<T>;
+ /** Declare approval state names once, as checked keys in a stage dictionary. */
+ export declare function approvalStates<T extends LifecycleTypes>(stages: Partial<Record<T['state'], StageDefinition<T>>>): ApprovalState<T>[];
+-export interface ApplicationApprovalOptions<T extends LifecycleTypes> extends Omit<LifecycleDefinition<T>, 'states' | 'transitions' | 'collection'>, Pick<ApprovalOptions<T>, 'applicant' | 'directory' | 'effects' | 'calendar' | 'freeze' | 'assignment' | 'notify' | 'adminRole' | 'supervisorRole' | 'settings' | 'afterEnd' | 'copies' | 'userTasks'> {
++export interface ApplicationApprovalOptions<T extends LifecycleTypes> extends Omit<LifecycleDefinition<T>, 'states' | 'transitions' | 'collection'>, Pick<ApprovalOptions<T>, 'applicant' | 'directory' | 'effects' | 'calendar' | 'freeze' | 'assignment' | 'notify' | 'adminRole' | 'supervisorRole' | 'settings' | 'afterEnd' | 'copies' | 'userTasks' | 'automaticApprove'> {
+     readonly collection: string;
+     readonly version?: number;
+     readonly kind?: string;
+diff --git a/dist/server/kernel/pipeline.js b/dist/server/kernel/pipeline.js
+index ce7812d3d7b4bd89dcbcded7e137f8f65241e8a2..5b76a57f7ea276171f158d54807e1caac14fb9ab 100644
+--- a/dist/server/kernel/pipeline.js
++++ b/dist/server/kernel/pipeline.js
+@@ -370,11 +370,17 @@ export class ActionPipeline {
+     }
+     // ---------------------------------------------------------- performing
+     async execute(tx, input, extra = {}) {
+-        if (input.actor.system === true)
++        if (input.actor.system === true && extra.automatic !== true)
+             throw new ApprovalError('NOT_ALLOWED', 'Automatic rules do not perform user actions.');
+         await this.lockTarget(tx, input.target);
+         const situation = await this.situate(tx, input.target);
+         const { w, run, task } = situation;
++        if (extra.automatic === true) {
++            const policy = situation.approval.options.automaticApprove;
++            if (!task || !policy?.actorId || !input.requestId)
++                throw new ApprovalError('NOT_ALLOWED', 'Automatic approval is not authorized for this task.');
++            input = { ...input, actor: { id: policy.actorId, system: true } };
++        }
+         const requestId = input.requestId ?? null;
+         if (requestId !== null) {
+             if (requestId.startsWith('$'))
+@@ -430,8 +436,23 @@ export class ActionPipeline {
+                     applier: null,
+                 };
+         }
++        if (extra.automatic === true && !(await situation.approval.options.automaticApprove.authorize({ record: situation.record, task, run, evidence: extra.evidence, services: w.services })))
++            throw new ApprovalError('NOT_ALLOWED', 'Automatic approval is not authorized for this task.');
+         const comment = text(input.comment);
+-        const { use, context } = await this.admit(situation, input.action, input.actor, input.contentHash, comment, 'taskId' in input.target ? 'task' : 'run');
++        let admitted;
++        if (extra.automatic === true) {
++            const use = actionOf(situation.approval, 'approve', situation.stage, task);
++            if (!use || use.action.scope !== 'task' || task?.kind !== 'decide')
++                throw new ApprovalError('NOT_ALLOWED', 'This task has no approval action.');
++            await this.guard(situation, use.action, input.actor, undefined, async () => {});
++            const context = await this.context(situation, input.actor, 'system', null, comment, configOf(use));
++            const availability = await use.action.available(context);
++            if (!availability.ok) throw new ApprovalError(availability.code, availability.message);
++            admitted = { use, context };
++        } else {
++            admitted = await this.admit(situation, input.action, input.actor, input.contentHash, comment, 'taskId' in input.target ? 'task' : 'run');
++        }
++        const { use, context } = admitted;
+         const { action } = use;
+         if (extra.batchId !== undefined && !action.batch)
+             throw new ApprovalError('NOT_ALLOWED', `"${action.name}" is not taken on several targets at once.`);
+@@ -456,6 +477,7 @@ export class ActionPipeline {
+         for (const field of action.record ?? [])
+             if (given[field] !== undefined)
+                 recorded[field] = given[field] ?? null;
++        if (extra.automatic === true) recorded.automaticApproval = extra.evidence;
+         const [last] = await w.rows.select(EVENTS, {
+             match: { runId: run.id },
+             descending: true,
+@@ -507,7 +529,7 @@ export class ActionPipeline {
+         await withTaskProjectionBatch(tx, async () => {
+             await applier.apply(effects);
+             if (!extra.deferSettle)
+-                await applier.settle();
++                await applier.settle(extra.automatic === true ? { input: { automaticApproval: extra.evidence } } : {});
+         });
+         applier.notify();
+         await this.record(w, row.id, applier);
+@@ -620,6 +642,13 @@ export class ActionPipeline {
+     sweepTask(taskId) {
+         return this.host.runtime.transaction((tx) => this.processClock(tx, taskId));
+     }
++    /** Automatic authority is code-owned; never accepted through perform or its input. */
++    approveAutomatically(input) {
++        return this.host.runtime.transaction(async (tx) => (await this.execute(tx, {
++            action: 'approve', target: { taskId: input.taskId },
++            actor: { id: 'automatic', system: true }, requestId: input.requestId,
++        }, { automatic: true, evidence: input.evidence })).performed);
++    }
+     /** Performs one action in its own transaction. */
+     perform(input) {
+         return this.host.runtime.transaction(async (tx) => (await this.execute(tx, input)).performed);
+diff --git a/dist/server/service.d.ts b/dist/server/service.d.ts
+index 928dd5923bc9b517cd945534a9278e31c4cc2f8e..2a893ac167928334a687123291719f17fadc3a0d 100644
+--- a/dist/server/service.d.ts
++++ b/dist/server/service.d.ts
+@@ -54,6 +54,8 @@ export declare class ApprovalService {
+      * Reading an already-read copy is a replay.
+      */
+     approve(input: TaskOperationInput): Promise<Answered>;
++    /** Server-only approval under the definition's explicit automaticApprove policy. */
++    approveAutomatically(input: { readonly taskId: string; readonly requestId: string; readonly evidence: import('@nocobase/lifecycle').JsonObject }): Promise<Answered>;
+     reject(input: TaskOperationInput): Promise<Answered>;
+     provideMaterial(input: TaskOperationInput): Promise<Answered>;
+     read(input: TaskOperationInput): Promise<Answered>;
+diff --git a/dist/server/service.js b/dist/server/service.js
+index a0d3b2bd0bea25d3724fc2a8ea0fa33fcc77123b..b6ecf9ae5a8ee1c552d9d428286aaa7afb4aef4d 100644
+--- a/dist/server/service.js
++++ b/dist/server/service.js
+@@ -50,6 +50,13 @@ export class ApprovalService {
+     candidatesFor(input) {
+         return this.runtime.transaction((tx) => this.pipeline.candidates(tx, input.target, input.action, input.actor, input.query ?? {}));
+     }
++    async approveAutomatically(input) {
++        const performed = await this.pipeline.approveAutomatically(input);
++        return {
++            task: await this.actions.resultTask(performed, 'answer', input.taskId),
++            outcome: performed.outcome,
++        };
++    }
+     perform(input) {
+         return this.pipeline.perform(input);
+     }
+diff --git a/dist/server/types.d.ts b/dist/server/types.d.ts
+index cc0a3517e3da440708f7b53e4a3894611ca9b819..4de6547b2e68f767a7da38dc05901f2c1032c0e4 100644
+--- a/dist/server/types.d.ts
++++ b/dist/server/types.d.ts
+@@ -200,6 +200,17 @@ export interface ApprovalCopies<T extends LifecycleTypes> {
+ }
+ /** Task execution settings attached to an application lifecycle. */
+ export interface ApprovalOptions<T extends LifecycleTypes> {
++    /** Server-only automatic approval; absent means no automatic decisions. */
++    readonly automaticApprove?: {
++        readonly actorId: string;
++        authorize(context: {
++            readonly record: T['record'];
++            readonly task: TaskRow;
++            readonly run: RunRow;
++            readonly evidence: JsonObject;
++            readonly services: ServicesOf<T>;
++        }): boolean | Promise<boolean>;
++    };
+     /** Named transactional handlers available to custom action effects. */
+     readonly effects?: Readonly<Record<string, import('./kernel/effects.js').CustomEffectHandler<T>>>;
+     /** Opt into transactional personal tasks with a host-owned safe presentation mapping. */

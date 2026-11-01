@@ -68,6 +68,7 @@ export default class SrmProvider extends ServiceProvider<Application> {
         await service.approvals.sweep();
       },
     });
+    service.effectDispatcher = this.jobs;
     await this.jobs.start(service.runtime);
   }
   override async shutdown(): Promise<void> {
