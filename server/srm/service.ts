@@ -488,6 +488,22 @@ export class SrmService {
           sort: (sort) => sort.field('at').desc(),
         })
       : [];
+    // A committed approval is authoritative even if its effect's completion times out.
+    const committedAi = new Set(
+      aiReviews.flatMap((entry) => {
+        const details = decoded<import('@nocobase/lifecycle').JsonObject>(
+          entry.details,
+        );
+        const evidence = details.aiReview;
+        return entry.action === 'approved' &&
+          evidence &&
+          typeof evidence === 'object' &&
+          !Array.isArray(evidence) &&
+          typeof evidence.effectRunId === 'string'
+          ? [evidence.effectRunId]
+          : [];
+      }),
+    );
     const failedAi = mayReadAi
       ? await this.db.repository('srmEffectRuns').findMany({
           filter: { recordId: id, effect: 'srm.aiReview', status: 'failed' },
@@ -527,13 +543,20 @@ export class SrmService {
                   ];
                 return [];
               }),
-              ...failedAi.map((entry) => ({
-                id: String(entry.id as string | number | bigint),
-                at: entry.updatedAt,
-                effectRunId: String(entry.id as string | number | bigint),
-                outcome: 'manual',
-                code: 'timeoutOrFailure',
-              })),
+              ...failedAi
+                .filter(
+                  (entry) =>
+                    !committedAi.has(
+                      String(entry.id as string | number | bigint),
+                    ),
+                )
+                .map((entry) => ({
+                  id: String(entry.id as string | number | bigint),
+                  at: entry.updatedAt,
+                  effectRunId: String(entry.id as string | number | bigint),
+                  outcome: 'manual',
+                  code: 'timeoutOrFailure',
+                })),
             ],
           }
         : {}),

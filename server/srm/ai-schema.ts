@@ -40,3 +40,10 @@ export const aiResultSchema = z
     reasons: z.array(z.string().trim().min(1).max(500)).min(1).max(5),
   })
   .strict();
+
+/** Accept a complete JSON fence, never extract a JSON fragment from prose. */
+export function parseAiResult(text: string) {
+  const trimmed = text.trim();
+  const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(trimmed);
+  return aiResultSchema.parse(JSON.parse(fenced ? fenced[1] : trimmed));
+}

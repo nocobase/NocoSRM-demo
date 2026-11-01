@@ -15,6 +15,7 @@ import {
   aiSettingsSchema,
   defaultAiSettings,
   aiResultSchema,
+  parseAiResult,
   type AiSettings,
 } from './ai-schema.js';
 export { aiSettingsSchema } from './ai-schema.js';
@@ -202,7 +203,7 @@ export class AiReviewService {
           })),
         }),
       });
-      const suggestion = aiResultSchema.parse(JSON.parse(response.text));
+      const suggestion = parseAiResult(response.text);
       signal.throwIfAborted();
       const evidence = {
         ...base,

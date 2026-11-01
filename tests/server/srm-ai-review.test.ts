@@ -244,6 +244,9 @@ for (const response of [
     expect(
       await srm.approvals.actionsOf('srmCompanies', company.id),
     ).toHaveLength(0);
+    const trace = (await srm.detail(manager.id, company.id)).aiReviews;
+    expect(trace).toHaveLength(1);
+    expect(trace![0]).toMatchObject({ outcome: 'manual' });
     await srm.approvals.approve({
       taskId: offered.task.id,
       actor: { id: manager.id },
@@ -436,4 +439,103 @@ test('settings require authorization, validate input, and replay writes', async 
     body: JSON.stringify({ ...defaultAiSettings, enabled: true }),
   });
   expect(invalid.status).toBe(400);
+});
+
+test('supplier native history endpoints do not expose internal AI evidence', async ({
+  app,
+  testApp,
+}) => {
+  const { srm, owner, company, run, generate } = await prepare(app);
+  generate.mockResolvedValue({
+    text:
+      '```json\n' +
+      JSON.stringify({
+        recommendation: 'approve',
+        confidence: 0.99,
+        reasons: ['Internal AI evidence'],
+      }) +
+      '\n```',
+  });
+  await srm.runtime.runEffect(run.id);
+  expect((await srm.company(company.id)).status).toBe('approved');
+  const supplier = await signIn(testApp, {
+    email: owner.email,
+    password: 'Synthetic-123!',
+  });
+  const swagger = await (await supplier.fetch('/swagger')).json();
+  expect(
+    Object.keys(swagger.paths).filter((path) =>
+      /^\/api\/approvals?(?:\/|$)/.test(path),
+    ),
+  ).toEqual([]);
+  for (const path of [
+    '/userTasks',
+    '/userTasks?status=pending',
+    '/userTasks?status=completed',
+    '/userTasks?status=cancelled',
+    '/userTasks/statistics',
+    '/userTasks/categoryStatistics',
+    `/srm/companies/${company.id}`,
+    '/srm/profile',
+  ]) {
+    const response = await supplier.fetch(path);
+    expect(response.status).toBe(200);
+    const body = JSON.stringify(await response.json());
+    expect(body).not.toContain('Internal AI evidence');
+    expect(body).not.toContain('automaticApproval');
+  }
+  const tasks = await srm.approvals.tasksFor('srmCompanies', company.id);
+  for (const task of tasks)
+    expect((await supplier.fetch(`/userTasks/${task.id}`)).status).toBe(404);
+  expect((await supplier.fetch('/srm/aiReview/settings')).status).toBe(403);
+});
+
+test('committed approval evidence wins if effect completion reaches its timeout', async ({
+  app,
+}) => {
+  const { srm, manager, company, run, generate } = await prepare(app);
+  generate.mockResolvedValue({
+    text: JSON.stringify({
+      recommendation: 'approve',
+      confidence: 1,
+      reasons: ['Consistent'],
+    }),
+  });
+  const approve = srm.approvals.approveAutomatically.bind(srm.approvals);
+  let committed = false;
+  let release!: () => void;
+  vi.spyOn(srm.approvals, 'approveAutomatically').mockImplementation(
+    async (input) => {
+      const result = await approve(input);
+      committed = true;
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return result;
+    },
+  );
+  vi.useFakeTimers();
+  try {
+    const execution = srm.runtime.runEffect(run.id);
+    await vi.waitFor(() => expect(committed).toBe(true));
+    await vi.advanceTimersByTimeAsync(30_001);
+    await execution;
+    release();
+  } finally {
+    vi.useRealTimers();
+  }
+  // Exercise the persisted race state even when this runtime cancels the old effect on exit.
+  await srm.db.repository('srmEffectRuns').updateOne({
+    filter: { id: run.id },
+    values: { status: 'failed', error: 'Timed out after 30000 ms.' },
+  });
+  const detail = await srm.detail(manager.id, company.id);
+  expect(detail.aiReviews).toHaveLength(1);
+  expect(detail.aiReviews![0]).toMatchObject({
+    outcome: 'automatic',
+    effectRunId: run.id,
+  });
+  expect(
+    await srm.approvals.actionsOf('srmCompanies', company.id),
+  ).toHaveLength(1);
 });
