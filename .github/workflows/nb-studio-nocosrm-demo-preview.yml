@@ -21,6 +21,7 @@ jobs:
       APP_ID: 'nocosrm-demo-pr-${{ github.event.pull_request.number }}'
       ENVIRONMENT: 'preview'
       LOGS: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      NODE_AUTH_TOKEN: ${{ secrets.NOCOBASE_NPM_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +31,8 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: 'https://pkg-v3.nocobase.com/'
+          scope: '@nocobase'
       - name: Install the nb-studio CLI
         env:
           NB_STUDIO_API_KEY: ${{ secrets.NB_STUDIO_API_KEY }}
