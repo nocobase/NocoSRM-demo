@@ -1685,7 +1685,7 @@ packages:
       '@nocobase/service-provider': ^0.0.2-beta.2
 
   '@nocobase/app-plugin-approval@0.1.0-beta.7':
-    resolution: {integrity: sha512-L/jqUOEz3XUHw5WarBJ+X2ge7y9vcTGcPnN+S5alFBnOYJEX2GxM2D0J7l0U00nhhrdImfAScqgF5NVOu9wGbQ==}
+    resolution: {integrity: sha512-L/jqUOEz3XUHw5WarBJ+X2ge7y9vcTGcPnN+S5alFBnOYJEX2GxM2D0J7l0U00nhhrdImfAScqgF5NVOu9wGbQ==, tarball: https://pkg-v3.nocobase.com/@nocobase/app-plugin-approval/-/app-plugin-approval-0.1.0-beta.7.tgz}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       '@nocobase/app-client': ^4.0.0-beta.3
@@ -1919,7 +1919,7 @@ packages:
       cronstrue: ^3.24.0
 
   '@nocobase/app-plugin-task-center@0.1.0-beta.3':
-    resolution: {integrity: sha512-qXCGQtqw7gbB6M9KqQbvWyt5bX/TcAseRXTxXku0SrYkACvxSTV7klE/werbX8+4XVPzcvWAh/MmcoDMHc3Qgg==}
+    resolution: {integrity: sha512-qXCGQtqw7gbB6M9KqQbvWyt5bX/TcAseRXTxXku0SrYkACvxSTV7klE/werbX8+4XVPzcvWAh/MmcoDMHc3Qgg==, tarball: https://pkg-v3.nocobase.com/@nocobase/app-plugin-task-center/-/app-plugin-task-center-0.1.0-beta.3.tgz}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       '@base-ui/react': ^1.6.0
