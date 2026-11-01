@@ -30,3 +30,41 @@ trustLockfile: true
 # dependency from stopping the install with a red error before anything is even running.
 # See https://pnpm.io/settings/build#strictdepbuilds.
 strictDepBuilds: false
+
+minimumReleaseAgeExclude:
+  - '@aws-sdk/checksums@3.1002.0'
+  - '@aws-sdk/client-s3@3.1160.0'
+  - '@aws-sdk/core@3.979.0'
+  - '@aws-sdk/credential-provider-env@3.972.79'
+  - '@aws-sdk/credential-provider-http@3.972.81'
+  - '@aws-sdk/credential-provider-ini@3.973.24'
+  - '@aws-sdk/credential-provider-login@3.972.86'
+  - '@aws-sdk/credential-provider-node@3.972.91'
+  - '@aws-sdk/credential-provider-process@3.972.79'
+  - '@aws-sdk/credential-provider-sso@3.973.23'
+  - '@aws-sdk/credential-provider-web-identity@3.972.85'
+  - '@aws-sdk/middleware-sdk-s3@3.972.84'
+  - '@aws-sdk/nested-clients@3.997.53'
+  - '@aws-sdk/s3-request-presigner@3.1160.0'
+  - '@aws-sdk/token-providers@3.1160.0'
+  - '@babel/generator@7.29.12'
+  - '@babel/helper-create-class-features-plugin@7.29.12'
+  - '@babel/parser@7.29.12'
+  - '@babel/runtime@8.0.10'
+  - '@babel/traverse@7.29.12'
+  - '@csstools/css-color-parser@4.2.7'
+  - '@csstools/css-syntax-patches-for-csstree@1.1.16'
+  - '@smithy/core@3.38.0'
+  - '@smithy/node-http-handler@4.14.0'
+  - '@smithy/signature-v4@5.7.5'
+  - ansi-regex@6.5.0
+  - caniuse-lite@1.0.30001820
+  - electron-to-chromium@1.5.468
+  - file-type@22.3.0
+  - imapflow@2.10.0
+  - jose@6.2.14
+  - mailparser@3.14.1
+  - node-releases@2.0.61
+  - nodemailer@10.3.1
+  - react-resizable-panels@4.15.2
+  - react-virtuoso@4.18.20

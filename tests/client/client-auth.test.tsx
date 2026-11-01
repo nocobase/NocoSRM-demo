@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import enUS from '../../client/locales/en-US.ts';
+import SupplierEntry from '../../client/pages/srm/entry.js';
 import LoginPage from '../../client/pages/auth/login.tsx';
 import ForgotPasswordPage from '../../client/pages/auth/forgot-password.tsx';
 import RegisterPage from '../../client/pages/auth/register.tsx';
@@ -34,11 +35,19 @@ const passwordResetRequest = vi.hoisted(() => ({
 
 vi.mock('@nocobase/app-plugin-authentication/client/actions', () => ({
   usePasswordLogin: () => passwordLoginAction,
+  useAuthenticationErrorResolver: () => () => ({
+    message: 'Registration failed',
+  }),
   usePasswordRegistration: () => ({ isPending: false, submit: vi.fn() }),
   usePasswordResetRequest: () => passwordResetRequest,
 }));
 
 vi.mock('@nocobase/app-plugin-authentication/client', () => ({
+  useAuthentication: () => ({
+    session: null,
+    client: { signUp: { email: vi.fn() } },
+    refresh: vi.fn(),
+  }),
   useSignUpAvailable: () => signUpAvailable.value,
   usePasswordResetCapability: () => resetCapability,
 }));
@@ -52,7 +61,7 @@ function renderAt(path: string, page: ReactElement) {
     <TestI18nProvider runtime={runtime}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route element={page} path={path} />
+          <Route element={page} path={path.split('?')[0]} />
           <Route element={<p>Login route</p>} path='/login' />
         </Routes>
       </MemoryRouter>
@@ -65,7 +74,9 @@ describe('application authentication pages', () => {
     passwordLoginAction.submit.mockClear();
     renderAt('/', <LoginPage />);
 
-    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Supplier sign in' }),
+    ).toBeVisible();
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Username or email'), {
       target: { value: 'alice' },
@@ -196,4 +207,42 @@ describe('application authentication pages', () => {
     expect(screen.getByText('Login route')).toBeVisible();
     signUpAvailable.value = true;
   });
+});
+
+it('keeps staff login separate from supplier registration', async () => {
+  signUpAvailable.value = true;
+  renderAt('/entry?portal=staff', <LoginPage />);
+  expect(
+    screen.getByRole('heading', { name: 'Employee sign in' }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('link', { name: 'Sign up' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: 'Supplier sign in' }),
+  ).toHaveAttribute('href', '/login');
+});
+
+it('shows account provisioning guidance when public supplier registration is closed', () => {
+  signUpAvailable.value = false;
+  try {
+    renderAt('/supplier', <SupplierEntry />);
+    expect(
+      screen.queryByRole('button', { name: 'Register and apply' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Self-registration is currently closed/),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Supplier sign in' }),
+    ).toBeVisible();
+  } finally {
+    signUpAvailable.value = true;
+  }
+});
+it('preserves the return path when choosing a login entry', () => {
+  renderAt('/entry?portal=staff&redirect=%2Fadmission', <LoginPage />);
+  expect(
+    screen.getByRole('link', { name: 'Supplier sign in' }),
+  ).toHaveAttribute('href', '/login?redirect=%2Fadmission');
 });

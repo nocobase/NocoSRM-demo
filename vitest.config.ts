@@ -14,6 +14,7 @@ export default defineConfig({
         test: {
           root,
           name: 'node',
+          setupFiles: ['./tests/setup/server-loader.ts'],
           include: ['tests/{server,database,cli,project}/**/*.test.{ts,tsx}'],
           // Database fixtures and command output capture run one file at a time.
           fileParallelism: false,

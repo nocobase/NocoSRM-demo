@@ -1,3 +1,5 @@
+import { supplierRegistration } from './srm/registration.js';
+import { roleAudit } from './srm/role-audit.js';
 import { MailerProvider } from '@nocobase/app-server/mailer';
 import type { Application } from '@nocobase/app-server/application';
 import { DatabaseProvider } from '@nocobase/app-server/database';
@@ -44,6 +46,9 @@ export function createApp(runtime: AppRuntimeContext): Application {
   app.addHttpMiddleware(requestLoggingMiddleware);
   app.addHttpMiddleware(sessionHttpMiddleware);
   app.addHttpMiddleware(i18nHttpMiddleware);
+  // Native Users owns role writes; this scoped observer records their confirmed outcomes before route dispatch.
+  app.addHttpMiddleware(roleAudit);
+  app.addHttpMiddleware(supplierRegistration);
   app.addRoutes(healthCheckApiRoutes);
   app.addRuntimeContributions(runtime);
   app.addRoutes(spaRootRoutes);

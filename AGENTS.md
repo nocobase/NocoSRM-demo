@@ -128,6 +128,7 @@ Standard Repository writes require an operation key through the registered submi
 
 | Read                                                                   | When                                                                                                         |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [.agents/rules/srm.md](.agents/rules/srm.md)                           | Maintaining supplier admission, approval tasks, private files or sample data                                 |
 | [.agents/rules/workspace.md](.agents/rules/workspace.md)               | Adding internal packages or changing workspace development and validation                                    |
 | [.agents/rules/components.md](.agents/rules/components.md)             | Adding or changing a component, a shadcn primitive, a UI Library item, or the visual design                  |
 | [.agents/rules/shell.md](.agents/rules/shell.md)                       | Changing layouts, the header, sidebar, breadcrumbs, the account menu or loading indicators                   |

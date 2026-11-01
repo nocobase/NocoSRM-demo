@@ -1,5 +1,7 @@
 import {
   Settings,
+  Tags,
+  Workflow,
   Users,
   ShieldCheck,
   KeyRound,
@@ -17,6 +19,40 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
     path: '/settings',
     navigation: { title: 'settings.title', icon: Settings, order: 100 },
     children: [
+      {
+        name: 'srmCategories',
+        path: '/categories',
+        auth: 'required',
+        authz: {
+          resource: { type: 'settings', id: 'srm.business' },
+          action: 'manageCategories',
+        },
+        navigation: { title: 'srm.categories', icon: Tags },
+        componentLoader: () => import('../srm/categories.js'),
+        children: [
+          {
+            name: 'srmCategoryCreate',
+            path: 'new',
+            componentLoader: () => import('../srm/category-form.js'),
+          },
+          {
+            name: 'srmCategoryEdit',
+            path: ':id',
+            componentLoader: () => import('../srm/category-form.js'),
+          },
+        ],
+      },
+      {
+        name: 'srmWorkflow',
+        path: '/workflows',
+        auth: 'required',
+        authz: {
+          resource: { type: 'settings', id: 'srm.business' },
+          action: 'inspectWorkflow',
+        },
+        navigation: { title: 'srm.workflows', icon: Workflow },
+        componentLoader: () => import('../srm/workflow.js'),
+      },
       {
         name: 'settingsUsers',
         path: '/users',
