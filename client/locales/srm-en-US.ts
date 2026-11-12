@@ -50,9 +50,9 @@ export default {
       uncertain: 'Uncertain',
     },
   },
-  registrationComplete: 'Account created',
+  registrationComplete: 'Registration submitted',
   registrationNextStep:
-    'Your supplier applicant account is ready. Sign in to complete company details and submit qualifications. Registration does not mean admission.',
+    'Sign in to complete company details and submit qualifications. Registration does not mean admission.',
   continueToLogin: 'Continue to supplier sign in',
 
   registrationClosed:
@@ -195,7 +195,8 @@ export default {
   registerTitle: 'Supplier registration',
   registerDescription:
     'Create an account with your email and password to start supplier admission.',
-  registered: 'Registration complete. You can now sign in.',
+  registered:
+    'If this email address was not registered before, sign in with the details you just entered. If it was, sign in with your existing account or contact an administrator.',
   referrerLabel: 'Referrer name (optional)',
   fields: {
     legalName: 'Legal company name',

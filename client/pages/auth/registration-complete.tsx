@@ -1,11 +1,14 @@
-import { CheckCircle2 } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
 import { useTranslation } from '@nocobase/i18n/client';
 import { Button } from '#components/ui/button';
 import { AuthPage } from './shared.js';
 
-/** This optional route survives session refresh, unlike the guest registration form. */
+/**
+ * This optional route survives session refresh, unlike the guest registration form.
+ * Sign-up answers a taken email with the same success response, so the copy stays neutral and never claims an account.
+ */
 export default function RegistrationComplete() {
   const { t } = useTranslation();
   const { session, isPending } = useAuthentication();
@@ -22,10 +25,7 @@ export default function RegistrationComplete() {
           className='flex items-center gap-3 rounded-lg border border-border bg-muted p-4'
           role='status'
         >
-          <CheckCircle2
-            aria-hidden='true'
-            className='size-6 shrink-0 text-primary'
-          />
+          <Info aria-hidden='true' className='size-6 shrink-0 text-primary' />
           <p className='text-sm font-medium'>{t('srm.registered')}</p>
         </div>
         <Button

@@ -43,9 +43,9 @@ export default {
       uncertain: '不确定',
     },
   },
-  registrationComplete: '账号已创建',
+  registrationComplete: '注册已提交',
   registrationNextStep:
-    '您的供应商申请账号已创建成功。请登录后填写企业资料、上传资质并提交申请。注册成功不代表已准入。',
+    '请登录后填写企业资料、上传资质并提交申请。注册不代表已准入。',
   continueToLogin: '前往供应商登录',
 
   registrationClosed:
@@ -166,7 +166,8 @@ export default {
   time: '时间',
   registerTitle: '供应商注册',
   registerDescription: '使用邮箱和密码创建账号，即可开始供应商入驻。',
-  registered: '注册完成，现在可以登录。',
+  registered:
+    '如该邮箱此前未注册，请使用刚填写的信息登录；如已注册，请使用原账号登录或联系管理员。',
   referrerLabel: '介绍人姓名（选填）',
   fields: {
     legalName: '企业法定名称',
