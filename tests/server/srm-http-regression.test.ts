@@ -43,7 +43,7 @@ async function createSupplier(app: Application, testApp: TestApp) {
   const password = 'Srm-test-123!';
   const user = await app.container
     .resolve(userAdministrationServiceToken)
-    .create({ name: 'HTTP supplier', email, password });
+    .create({ name: `HTTP supplier ${email}`, email, password });
   await app.container.resolve(authorizationToken).permissionSets.assign({
     subject: { type: 'user', id: user.id },
     permissionSet: 'srm-supplier',
@@ -179,13 +179,13 @@ test('protects concurrent drafts, locked credit codes and owner-only files', asy
     ),
   );
   expect(updates.map((response) => response.status).sort()).toEqual([200, 409]);
+  const winner = updates.find((response) => response.status === 200)!;
+  const winnerBody = await winner.json();
   const rejected = updates.find((response) => response.status === 409)!;
   expect((await rejected.json()).error.reason).toBe('STATE_CHANGED');
   const finalDraft = (await (await supplier.fetch('/srm/profile')).json()).data
     .company.draft;
-  expect(['Concurrent winner A', 'Concurrent winner B']).toContain(
-    finalDraft.legalName,
-  );
+  expect(finalDraft.legalName).toBe(winnerBody.data.draft.legalName);
 
   const registered = await createSupplier(app, testApp);
   const lockedCode = '91350211M000100Y42';
@@ -205,6 +205,7 @@ test('protects concurrent drafts, locked credit codes and owner-only files', asy
       expectedVersion: company.lifecycleVersion,
     }),
   );
+  expect(changedCode.status).toBe(400);
   expect((await changedCode.json()).error.reason).toBe('CREDIT_CODE_LOCKED');
 
   const duplicate = await createSupplier(app, testApp);
@@ -297,6 +298,9 @@ test('enforces submission prerequisites, internal permissions and logout', async
     json({ expectedVersion: 0 }),
   );
   expect(missingDeclaration.status).toBe(400);
+  expect(
+    (await missingDeclaration.json()).error.fieldViolations,
+  ).toContainEqual(expect.objectContaining({ field: 'declaration' }));
 
   const license = await upload(
     supplier,
