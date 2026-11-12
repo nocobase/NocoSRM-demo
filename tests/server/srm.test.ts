@@ -506,6 +506,58 @@ test('self-registration provisions only supplier access and revocation closes re
   expect((await admin.fetch('/srm/profile')).status).toBe(403);
 });
 
+test('duplicate email registration creates no account and grants nothing', async ({
+  app,
+  request,
+}) => {
+  const first = await request(
+    '/auth/sign-up/email',
+    json({
+      email: 'duplicate-supplier@example.test',
+      name: 'Original supplier',
+      username: 'originalsupplier',
+      password: 'Srm-test-123!',
+    }),
+  );
+  expect(first.status).toBe(200);
+  const original = (await first.json()).user;
+  const repeated = await request(
+    '/auth/sign-up/email',
+    json({
+      email: 'duplicate-supplier@example.test',
+      name: 'Repeated supplier',
+      username: 'repeatedsupplier',
+      password: 'Srm-test-456!',
+    }),
+  );
+  // Authentication hides whether the email is taken; provisioning must not turn that into an error.
+  expect(repeated.status).toBe(200);
+  const fabricated = (await repeated.json()).user;
+  expect(fabricated.id).not.toBe(original.id);
+  const users = app.container.resolve(userAdministrationServiceToken);
+  const matches = await users.list({
+    search: 'duplicate-supplier@example.test',
+    page: 1,
+    pageSize: 10,
+  });
+  expect(matches.items.map((user) => user.id)).toEqual([original.id]);
+  expect(await users.get(fabricated.id)).toBeUndefined();
+  const assignments = await app.container
+    .resolve(authorizationToken)
+    .permissionSets.listAssignments();
+  expect(assignments.filter((a) => a.subject.id === fabricated.id)).toEqual([]);
+  expect(
+    assignments
+      .filter((a) => a.subject.id === original.id)
+      .map((a) => a.permissionSet),
+  ).toContain('srm-supplier');
+  const signInRepeated = await request(
+    '/auth/sign-in/username',
+    json({ username: 'repeatedsupplier', password: 'Srm-test-456!' }),
+  );
+  expect(signInRepeated.status).toBe(401);
+});
+
 test('failed registration provisioning stays closed and can be recovered through role administration', async ({
   app,
   testApp,

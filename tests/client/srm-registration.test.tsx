@@ -87,9 +87,15 @@ it('keeps completion visible across the native session refresh and offers suppli
   await renderRegistration(signUp, refreshSession);
   await fillAndSubmit();
   expect(
-    await screen.findByRole('heading', { name: 'Account created' }),
+    await screen.findByRole('heading', { name: 'Registration submitted' }),
   ).toBeVisible();
-  expect(screen.getByRole('status')).toHaveTextContent('Registration complete');
+  // Sign-up returns the same success for an already registered email, so the page must not claim an account exists.
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'If this email address was not registered before',
+  );
+  expect(document.body).not.toHaveTextContent(/account created/i);
+  expect(document.body).not.toHaveTextContent(/can now sign in/i);
+  expect(document.body).not.toHaveTextContent(/account is ready/i);
   expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: 'Continue to supplier sign in' }),
@@ -119,11 +125,11 @@ it('preserves entered values after failed registration and can retry successfull
   expect(screen.getByLabelText('Email')).toHaveValue('applicant@example.test');
   expect(screen.getByLabelText('Password')).toHaveValue('Test-password-123!');
   expect(
-    screen.queryByRole('heading', { name: 'Account created' }),
+    screen.queryByRole('heading', { name: 'Registration submitted' }),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Create account/ }));
   expect(
-    await screen.findByRole('heading', { name: 'Account created' }),
+    await screen.findByRole('heading', { name: 'Registration submitted' }),
   ).toBeVisible();
   expect(signUp).toHaveBeenCalledTimes(2);
 });

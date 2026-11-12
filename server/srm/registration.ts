@@ -6,6 +6,7 @@ import {
   defineHttpMiddleware,
 } from '@nocobase/app-server/router';
 import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
+import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication/server';
 
 /** Only a successful native public registration may provision an applicant. */
 export const supplierRegistration = defineHttpMiddleware<Application>({
@@ -20,6 +21,12 @@ export const supplierRegistration = defineHttpMiddleware<Application>({
       if (!result.success) return;
       // The response ID is issued by Authentication; request role fields are never consulted.
       try {
+        // A taken email gets the same 200 with a fabricated user so the response does not reveal registration.
+        // No account exists behind that ID, so grant nothing and leave the indistinguishable response untouched.
+        const user = await app.container
+          .resolve(userAdministrationServiceToken)
+          .get(result.data.user.id);
+        if (!user) return;
         await app.container.resolve(authorizationToken).permissionSets.assign({
           subject: { type: 'user', id: result.data.user.id },
           permissionSet: 'srm-supplier',
