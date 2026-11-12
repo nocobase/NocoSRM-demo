@@ -1,4 +1,55 @@
 export default {
+  notFound:
+    'This record does not exist or has been deleted. Return to the list.',
+  deniedHint: 'Ask an administrator to grant access before trying again.',
+  signInAgain: 'Sign in again',
+  ai: {
+    inputScope:
+      'Reviews submitted business text and attachment names only. Attachment contents are not sent; document authenticity is not assessed.',
+    backgroundActions: 'Background actions',
+    save: 'Save settings',
+    title: 'AI review',
+    actor: 'AI review',
+    description:
+      'Review submitted text for consistency. Human approval remains available at all times.',
+    enabled: 'Enable AI review',
+    enableHint:
+      'Changes take effect after saving. Only an approval recommendation at or above the threshold passes automatically.',
+    model: 'Model',
+    models: 'Models',
+    selectModel: 'Select a configured chat model',
+    noModels: 'No chat models configured',
+    noModelsHint:
+      'Ask a model administrator to add an enabled model service. Human approval remains available.',
+    threshold: 'Confidence threshold',
+    thresholdHint:
+      'Choose a value from 0 to 1 after calibration against labeled examples. There is no default threshold.',
+    tokens: 'Maximum output tokens',
+    invalidModel: 'Select an available chat model before enabling review.',
+    invalidThreshold: 'Enter a calibrated threshold between 0 and 1.',
+    invalidTokens: 'Enter a whole number between 128 and 4096.',
+    saved: 'AI review settings saved',
+    saving: 'Saving…',
+    readOnly:
+      'You can inspect these settings. Ask an administrator for permission to change them.',
+    configure: 'Configure AI review',
+    recommendation: 'Recommendation',
+    confidence: 'Confidence / threshold',
+    notRecorded: 'No AI review has been recorded for this application.',
+    fallbackHint:
+      'AI review could not complete this decision. The original human approval remains available.',
+    outcomes: {
+      automatic: 'Automatically approved',
+      manual: 'Sent to human review',
+      superseded: 'Already handled by another decision',
+      disabled: 'AI review disabled',
+    },
+    recommendations: {
+      approve: 'Approve',
+      reject: 'Do not approve',
+      uncertain: 'Uncertain',
+    },
+  },
   registrationComplete: 'Registration submitted',
   registrationNextStep:
     'Sign in to complete company details and submit qualifications. Registration does not mean admission.',
@@ -160,6 +211,8 @@ export default {
     referrerName: 'Referrer name (optional)',
   },
   errors: {
+    AI_MODEL_UNAVAILABLE:
+      'Select an available chat model in Models before enabling review.',
     INVALID_INPUT: 'Check the highlighted fields.',
     ACCESS_DENIED: 'You do not have permission for this action.',
     PROFILE_INCOMPLETE:
@@ -194,6 +247,7 @@ export default {
     approved: 'Admitted',
   },
   permissions: {
+    configureAiReview: 'Configure AI review',
     applyAdmission: 'Apply for own company admission',
     readApplications: 'Read applications',
     approve: 'Approve admission',

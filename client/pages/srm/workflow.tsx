@@ -21,6 +21,7 @@ import { DataTable } from '#components/data-table';
 import { Button } from '#components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import { useResource, useDate, type Company } from './shared.js';
+import { AiReviewSettings, type AiSettingsResponse } from './ai-settings.js';
 
 interface Workflow {
   description: { description: LifecycleDescription };
@@ -53,6 +54,7 @@ export default function WorkflowPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get('execution');
   const resource = useResource<Workflow>('srm/workflow');
+  const aiSettings = useResource<AiSettingsResponse>('srm/aiReview/settings');
   const submission = useSubmission({
     scope: `${session?.user.id}:srm.notificationRetry`,
   });
@@ -93,16 +95,41 @@ export default function WorkflowPage() {
           <WorkflowDefinitionDetail
             diagramTitle={t('srm.admission')}
             parametersTitle={t('srm.parameters')}
-            parameters={
-              <p className='text-sm text-muted-foreground'>
-                {t('srm.fixedProcess')}
-              </p>
-            }
+            parameters={<AiReviewSettings resource={aiSettings} />}
             diagram={
               <LifecycleDiagram
                 presentation='process'
                 stateKind={admissionStateKind}
-                description={resource.data.description.description}
+                description={{
+                  ...resource.data.description.description,
+                  parameterConfiguration: {
+                    readMode: 'live',
+                    groups: [
+                      {
+                        key: 'aiReview',
+                        title: t('srm.ai.title'),
+                        schemaVersion: 1,
+                        fields: {
+                          settings: {
+                            type: 'object',
+                            title: t('srm.ai.title'),
+                            bindings: [{ state: 'pending' }],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                }}
+                configuration={{
+                  label: () => t('srm.ai.configure'),
+                  canConfigure: () => !!aiSettings.data?.canConfigure,
+                  onConfigure: () => {
+                    document.getElementById('ai-review-settings')?.focus();
+                    document
+                      .getElementById('ai-review-settings')
+                      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  },
+                }}
                 ariaLabel={t('srm.admission')}
                 stateLabel={(state) => t(`srm.states.${state.name}`)}
                 transitionLabel={(transition) =>
@@ -215,7 +242,16 @@ export default function WorkflowPage() {
               <DataTable
                 data={resource.data.effects}
                 columns={[
-                  { accessorKey: 'effect', header: t('srm.notification') },
+                  {
+                    accessorKey: 'effect',
+                    header: t('srm.ai.backgroundActions'),
+                    cell: ({ row }) =>
+                      t(
+                        row.original.effect === 'srm.aiReview'
+                          ? 'srm.ai.title'
+                          : 'srm.notification',
+                      ),
+                  },
                   {
                     accessorKey: 'status',
                     header: t('srm.status'),
@@ -229,6 +265,7 @@ export default function WorkflowPage() {
                     id: 'retry',
                     header: t('srm.actions'),
                     cell: ({ row }) =>
+                      row.original.effect === 'srm.admissionNotice' &&
                       ['failed', 'dead'].includes(row.original.status) && (
                         <Button
                           variant='outline'
@@ -263,7 +300,16 @@ export default function WorkflowPage() {
               <DataTable
                 data={resource.data.audit}
                 columns={[
-                  { accessorKey: 'action', header: t('srm.actions') },
+                  {
+                    accessorKey: 'action',
+                    header: t('srm.actions'),
+                    cell: ({ row }) =>
+                      row.original.action === 'aiReview'
+                        ? t('srm.ai.title')
+                        : t(`srm.transitions.${row.original.action}`, {
+                            defaultValue: row.original.action,
+                          }),
+                  },
                   { accessorKey: 'actorId', header: t('srm.actor') },
                   { accessorKey: 'companyId', header: t('srm.company') },
                   {

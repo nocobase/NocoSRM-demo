@@ -41,8 +41,10 @@ import {
   decoded,
   type Profile,
 } from '../srm/schema.js';
-import { businessActions, refuse } from '../srm/service.js';
+import { businessActions, refuse, redactAiEvidence } from '../srm/service.js';
 import type { Company } from '../srm/lifecycle.js';
+import { aiSettingsSchema } from '../srm/ai-review.js';
+import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
 
 const companyView = z.object({
   id: z.string(),
@@ -70,6 +72,7 @@ const detailView = z.object({
   runs: z.array(z.record(z.string(), z.json())),
   actions: z.array(z.record(z.string(), z.json())),
   people: z.record(z.string(), z.string()),
+  aiReviews: z.array(z.record(z.string(), z.json())).optional(),
 });
 const categoryView = categorySchema.extend({ id: z.string().uuid() });
 const responseSchemas: Record<string, z.ZodType> = {
@@ -93,6 +96,18 @@ const responseSchemas: Record<string, z.ZodType> = {
     size: z.union([z.string(), z.number()]),
   }),
   srmRetryEffect: z.object({ retried: z.boolean() }),
+  srmAiSettings: z.object({
+    settings: aiSettingsSchema,
+    canConfigure: z.boolean(),
+    canManageModels: z.boolean(),
+    models: z.array(
+      z.object({
+        value: z.object({ modelService: z.string(), model: z.string() }),
+        label: z.string(),
+      }),
+    ),
+  }),
+  srmSaveAiSettings: aiSettingsSchema,
 };
 const document = (operationId: string, summary: string) =>
   describeRoute({
@@ -203,6 +218,62 @@ export default defineApiRoutes((app: Application) => {
           emailVerified: user.emailVerified,
         },
       });
+    },
+  );
+  router.get(
+    '/srm/aiReview/settings',
+    document(
+      'srmAiSettings',
+      'Read AI review settings and available chat models',
+    ),
+    async (c) => {
+      const userId = c.get('auth')!.user.id;
+      await service.require(userId, 'inspectWorkflow');
+      const catalog = await service.ai.catalog();
+      return c.json({
+        data: {
+          settings: await service.ai.settings(),
+          canConfigure: await service.can(userId, 'configureAiReview'),
+          canManageModels: await app.container
+            .resolve(authorizationToken)
+            .for({ principal: { type: 'user', id: userId } })
+            .can({
+              resource: { type: 'settings', id: 'agents.services' },
+              action: 'read',
+            }),
+          models: catalog.services.flatMap((entry) =>
+            entry.models.map((model) => ({
+              value: { modelService: entry.name, model: model.value },
+              label: `${entry.title} / ${model.label}`,
+            })),
+          ),
+        },
+      });
+    },
+  );
+  router.put(
+    '/srm/aiReview/settings',
+    document('srmSaveAiSettings', 'Save AI review settings'),
+    async (c, next) => {
+      await service.require(c.get('auth')!.user.id, 'configureAiReview');
+      await next();
+    },
+    apiValidator('json', aiSettingsSchema),
+    async (c) => {
+      const userId = c.get('auth')!.user.id;
+      const input = c.req.valid('json');
+      await service.ai.validateSettings(input);
+      const saved = await executeIdempotentMutation({
+        connection: service.db.connection(),
+        key: c.req.header('Idempotency-Key') ?? '',
+        principal: `${app.appName}:${userId}`,
+        operation: 'srm.aiReview.settings',
+        input,
+        authorize: () => service.require(userId, 'configureAiReview'),
+        authorizeReplay: () => service.require(userId, 'configureAiReview'),
+        execute: (tx) => service.ai.save(userId, input, tx),
+      });
+      return c.json({ data: saved.data });
     },
   );
   router.get(
@@ -453,9 +524,13 @@ export default defineApiRoutes((app: Application) => {
             'srmCompanies',
           ),
           executions: await service.db.repository('srmCompanies').findMany(),
-          effects,
+          effects: redactAiEvidence(effects),
           notifications,
-          audit: await service.db.repository('srmAudit').findMany(),
+          audit: redactAiEvidence(
+            (await service.db.repository('srmAudit').findMany()).map(
+              (entry) => ({ ...entry, details: decoded(entry.details) }),
+            ),
+          ),
         },
       });
     },
@@ -470,7 +545,9 @@ export default defineApiRoutes((app: Application) => {
       return c.json({
         data: {
           company: await service.company(id),
-          history: await service.runtime.history('srmCompanies', id),
+          history: redactAiEvidence(
+            await service.runtime.history('srmCompanies', id),
+          ),
         },
       });
     },
@@ -529,7 +606,10 @@ export default defineApiRoutes((app: Application) => {
       if (
         !(
           await service.runtime.listEffectRuns({ lifecycle: 'srmCompanies' })
-        ).some((run) => String(run.id) === id)
+        ).some(
+          (run) =>
+            String(run.id) === id && run.effect === 'srm.admissionNotice',
+        )
       )
         refuse('NOTIFICATION_NOT_FOUND', 'NOT_FOUND');
       await service.runtime.retryRun(id);
